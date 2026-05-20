@@ -1,0 +1,175 @@
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: swiftlinkai-backend-svc
+  namespace: swiftlinkai
+spec:
+  selector:
+    app: swiftlinkai-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swiftlinkai-frontend
+  namespace: swiftlinkai
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: swiftlinkai-frontend
+  template:
+    metadata:
+      labels:
+        app: swiftlinkai-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ${ECR_REGISTRY}/swiftlinkai-frontend:${IMAGE_TAG}
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: swiftlinkai-frontend-svc
+  namespace: swiftlinkai
+spec:
+  selector:
+    app: swiftlinkai-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
+
+---
+# HPA - Backend
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: swiftlinkai-backend-hpa
+  namespace: swiftlinkai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: swiftlinkai-backend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swiftlinkai-config
+  namespace: swiftlinkai
+data:
+  redis-host: "redis-master.swiftlinkai.svc.cluster.local"
+  redis-port: "6379"
+  app-base-url: "https://swiftlink.ai"
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: swiftlinkai-ingress
+  namespace: swiftlinkai
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - swiftlink.ai
+        - api.swiftlink.ai
+      secretName: swiftlinkai-tls
+  rules:
+    - host: api.swiftlink.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: swiftlinkai-backend-svc
+                port:
+                  number: 80
+    - host: swiftlink.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: swiftlinkai-frontend-svc
+                port:
+                  number: 80
+
+---
+# NetworkPolicy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: swiftlinkai-netpol
+  namespace: swiftlinkai
+spec:
+  podSelector:
+    matchLabels:
+      app: swiftlinkai-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: swiftlinkai-frontend
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - port: 8080
+  egress:
+    - {}  # Allow all egress (external AI APIs, MySQL, Redis)
+
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: swiftlinkai-sa
+  namespace: swiftlinkai

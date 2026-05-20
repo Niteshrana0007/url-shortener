@@ -1,0 +1,58 @@
+groups:
+  - name: swiftlinkai_alerts
+    rules:
+
+      # High redirect error rate
+      - alert: HighRedirectErrorRate
+        expr: rate(http_server_requests_seconds_count{uri="/api/v1/{alias}",status=~"5.."}[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          service: swiftlinkai
+        annotations:
+          summary: "High redirect error rate detected"
+          description: "More than 1% of redirect requests are failing (current: {{ $value | humanizePercentage }})"
+
+      # P95 latency breach
+      - alert: RedirectLatencyHigh
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{uri="/api/v1/{alias}"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: swiftlinkai
+        annotations:
+          summary: "P95 redirect latency exceeds 50ms"
+          description: "P95 redirect latency is {{ $value | humanizeDuration }}"
+
+      # Circuit breaker open
+      - alert: AICircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{name="aiService",state="open"} == 1
+        for: 1m
+        labels:
+          severity: warning
+          service: swiftlinkai
+        annotations:
+          summary: "AI service circuit breaker is OPEN"
+          description: "AI metadata generation is failing; fallback aliases are being used"
+
+      # Redis unavailable
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: swiftlinkai
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache is unreachable; redirect performance will degrade"
+
+      # High memory usage
+      - alert: HighJvmMemory
+        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: swiftlinkai
+        annotations:
+          summary: "JVM heap usage above 85%"
+          description: "Heap usage is at {{ $value | humanizePercentage }}"

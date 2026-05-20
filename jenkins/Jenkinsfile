@@ -1,0 +1,170 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME        = 'swiftlinkai'
+        ECR_REGISTRY    = credentials('ecr-registry-url')
+        AWS_REGION      = 'ap-south-1'
+        EKS_CLUSTER     = 'swiftlinkai-prod'
+        SONAR_TOKEN     = credentials('sonarqube-token')
+        IMAGE_TAG       = "${env.GIT_COMMIT[0..7]}"
+        BACKEND_IMAGE   = "${ECR_REGISTRY}/swiftlinkai-backend:${IMAGE_TAG}"
+        FRONTEND_IMAGE  = "${ECR_REGISTRY}/swiftlinkai-frontend:${IMAGE_TAG}"
+    }
+
+    options {
+        timeout(time: 45, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        // ── 1. Checkout ────────────────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Building branch: ${env.BRANCH_NAME} | commit: ${IMAGE_TAG}"
+            }
+        }
+
+        // ── 2. Backend Build & Test ────────────────────────────────────────
+        stage('Backend: Build & Test') {
+            steps {
+                dir('backend') {
+                    sh 'mvn clean verify -P ci --batch-mode'
+                }
+            }
+            post {
+                always {
+                    junit 'backend/target/surefire-reports/*.xml'
+                    publishHTML(target: [
+                        reportDir: 'backend/target/site/jacoco',
+                        reportFiles: 'index.html',
+                        reportName: 'JaCoCo Coverage'
+                    ])
+                }
+            }
+        }
+
+        // ── 3. SonarQube Analysis ──────────────────────────────────────────
+        stage('SonarQube Analysis') {
+            steps {
+                dir('backend') {
+                    withSonarQubeEnv('SonarQube') {
+                        sh """
+                            mvn sonar:sonar \
+                              -Dsonar.projectKey=${APP_NAME} \
+                              -Dsonar.host.url=${SONAR_HOST_URL} \
+                              -Dsonar.token=${SONAR_TOKEN} \
+                              --batch-mode
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── 4. Quality Gate ────────────────────────────────────────────────
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        // ── 5. Frontend Build ──────────────────────────────────────────────
+        stage('Frontend: Build') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci --frozen-lockfile'
+                    sh 'npm run type-check'
+                    sh 'npm run lint'
+                    sh 'npm run test'
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        // ── 6. Security Scan ───────────────────────────────────────────────
+        stage('Security Scan') {
+            parallel {
+                stage('OWASP Dependency Check') {
+                    steps {
+                        dir('backend') {
+                            sh 'mvn org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7'
+                        }
+                    }
+                }
+                stage('Trivy FS Scan') {
+                    steps {
+                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL .'
+                    }
+                }
+            }
+        }
+
+        // ── 7. Docker Build & Push ─────────────────────────────────────────
+        stage('Docker Build & Push') {
+            when { branch pattern: 'main|release/.*', comparator: 'REGEXP' }
+            steps {
+                withAWS(credentials: 'aws-ecr-credentials', region: AWS_REGION) {
+                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
+                    sh "docker build -t ${BACKEND_IMAGE}  ./backend"
+                    sh "docker build -t ${FRONTEND_IMAGE} ./frontend"
+                    sh "trivy image --exit-code 1 --severity HIGH,CRITICAL ${BACKEND_IMAGE}"
+                    sh "docker push ${BACKEND_IMAGE}"
+                    sh "docker push ${FRONTEND_IMAGE}"
+                }
+            }
+        }
+
+        // ── 8. Deploy to EKS ───────────────────────────────────────────────
+        stage('Deploy to EKS') {
+            when { branch 'main' }
+            steps {
+                withAWS(credentials: 'aws-ecr-credentials', region: AWS_REGION) {
+                    sh "aws eks update-kubeconfig --name ${EKS_CLUSTER} --region ${AWS_REGION}"
+                    sh """
+                        sed -i 's|\${ECR_REGISTRY}|${ECR_REGISTRY}|g; s|\${IMAGE_TAG}|${IMAGE_TAG}|g' \
+                          k8s/base/backend-deployment.yaml \
+                          k8s/base/services.yaml
+                    """
+                    sh 'kubectl apply -f k8s/base/ --namespace swiftlinkai'
+                    sh 'kubectl rollout status deployment/swiftlinkai-backend -n swiftlinkai --timeout=300s'
+                    sh 'kubectl rollout status deployment/swiftlinkai-frontend -n swiftlinkai --timeout=300s'
+                }
+            }
+        }
+
+        // ── 9. Smoke Tests ─────────────────────────────────────────────────
+        stage('Smoke Tests') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                    sleep 30
+                    curl -f https://api.swiftlink.ai/actuator/health || exit 1
+                    echo "Smoke tests passed"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "Pipeline succeeded: ${env.BUILD_URL}"
+        }
+        failure {
+            echo "Pipeline FAILED: ${env.BUILD_URL}"
+            // Add Slack/email notification here
+        }
+        rollback {
+            withAWS(credentials: 'aws-ecr-credentials', region: AWS_REGION) {
+                sh 'kubectl rollout undo deployment/swiftlinkai-backend -n swiftlinkai'
+                sh 'kubectl rollout undo deployment/swiftlinkai-frontend -n swiftlinkai'
+            }
+        }
+    }
+}

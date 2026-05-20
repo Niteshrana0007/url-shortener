@@ -1,0 +1,25 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+  flyway:
+    enabled: false   # Testcontainers uses ddl-auto instead
+
+  ai:
+    openai:
+      api-key: sk-test-placeholder
+
+app:
+  ai:
+    enabled: false
+  jwt:
+    secret: dGVzdHNlY3JldGtleWZvcmp3dHRva2Vuc3dpZnRsaW5rYWl0ZXN0aW5n
+    access-token-expiry-ms: 3600000
+    refresh-token-expiry-ms: 86400000
+
+logging:
+  level:
+    com.swiftlinkai: DEBUG
+    org.springframework.security: DEBUG

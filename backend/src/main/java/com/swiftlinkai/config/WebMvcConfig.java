@@ -3,6 +3,7 @@ package com.swiftlinkai.config;
 import com.swiftlinkai.security.TenantInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -17,5 +18,22 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(tenantInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/v1/auth/**");
+    }
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        // Grab the Vercel URL from your Render environment variables
+        String frontendUrl = System.getenv("APP_BASE_URL");
+        
+        // Fallback to local dev URL if Render environment variable isn't found
+        if (frontendUrl == null || frontendUrl.isEmpty()) {
+            frontendUrl = "http://localhost:5173"; 
+        }
+
+        registry.addMapping("/**")
+                .allowedOrigins(frontendUrl)
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true);
     }
 }

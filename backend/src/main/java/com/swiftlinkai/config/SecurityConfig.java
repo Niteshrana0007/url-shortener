@@ -18,6 +18,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -36,10 +37,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
+                        .requestMatchers(HttpMethod.GET, "/").permitAll() // <-- FIX 1: Allows your root URL to load without 403
                         .requestMatchers(HttpMethod.GET, "/link-*").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/{alias}").permitAll()
-                        .requestMatchers("/actuator/**").permitAll() // <-- MOVING IT HERE OPENS IT UP
+                        .requestMatchers("/actuator/**").permitAll() 
                         .requestMatchers("/swagger-ui/**", "/api-docs/**").permitAll()
                         // Secured endpoints
                         .requestMatchers("/api/v1/**").authenticated()
@@ -57,9 +59,23 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("https://*.swiftlink.ai", "http://localhost:*"));
+        
+        // Dynamic Origin Configuration to support Vercel deployments
+        List<String> allowedOrigins = new ArrayList<>();
+        allowedOrigins.add("http://localhost:*");
+        allowedOrigins.add("https://*.swiftlink.ai");
+        
+        // Read your Vercel URL from Render Environment settings
+        String prodFrontendUrl = System.getenv("APP_BASE_URL");
+        if (prodFrontendUrl != null && !prodFrontendUrl.isEmpty()) {
+            allowedOrigins.add(prodFrontendUrl);
+        }
+
+        config.setAllowedOriginPatterns(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Tenant-Id", "X-Request-Id"));
+        
+        // Combined headers from WebMvcConfig to be completely safe
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Tenant-Id", "X-Request-Id", "*"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

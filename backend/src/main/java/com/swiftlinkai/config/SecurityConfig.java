@@ -62,9 +62,13 @@ public class SecurityConfig {
         
         // Dynamic Origin Configuration to support Vercel deployments
         List<String> allowedOrigins = new ArrayList<>();
-        allowedOrigins.add("http://localhost:*");
-        allowedOrigins.add("https://url-shortener-brown-seven.vercel.app/api/v1:*");
-        allowedOrigins.add("https://url-shortener-brown-seven.vercel.app:*");
+        // allowedOrigins.add("http://localhost:*");
+        // allowedOrigins.add("https://url-shortener-brown-seven.vercel.app/api/v1:*");
+        // allowedOrigins.add("https://url-shortener-brown-seven.vercel.app:*");
+        allowedOrigins.add("http://localhost:5173");
+        allowedOrigins.add("https://url-shortener-brown-seven.vercel.app");
+        allowedOrigins.add("https://url-shortener-h0irgxjhs-niteshrana754-9664s-projects.vercel.app");
+        allowedOrigins.add("https://*.vercel.app"); // covers all preview deployments
     
         // Read your Vercel URL from Render Environment settings
         String prodFrontendUrl = System.getenv("APP_BASE_URL");

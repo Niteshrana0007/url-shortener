@@ -188,7 +188,7 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
 
     private ShortenUrlResponse buildResponse(ShortUrl shortUrl, boolean aiGenerated) {
         return ShortenUrlResponse.builder()
-                .shortUrl(baseUrl + "/" + shortUrl.getAlias())
+                .shortUrl(baseUrl + "/api/v1/" + shortUrl.getAlias())
                 .alias(shortUrl.getAlias())
                 .originalUrl(shortUrl.getOriginalUrl())
                 .tags(shortUrl.getGeneratedTags())

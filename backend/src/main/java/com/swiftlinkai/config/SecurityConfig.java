@@ -65,6 +65,8 @@ public class SecurityConfig {
         allowedOrigins.add("http://localhost:*");
         allowedOrigins.add("https://url-shortener-5zs5z5hb2-niteshrana754-9664s-projects.vercel.app/api/v1:*");
         allowedOrigins.add("https://url-shortener-5zs5z5hb2-niteshrana754-9664s-projects.vercel.app:*");
+        allowedOrigins.add("https://url-shortener-rof7.onrender.com:*");
+        allowedOrigins.add("https://url-shortener-rof7.onrender.com/api/v1:*");
         
         // Read your Vercel URL from Render Environment settings
         String prodFrontendUrl = System.getenv("APP_BASE_URL");

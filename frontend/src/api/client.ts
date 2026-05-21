@@ -24,7 +24,7 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiError>) => {
-    if (error.response?.status === 401 || error.response?.status === 500) {
+    if (error.response?.status === 401) {
       localStorage.removeItem('auth-storage')
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')

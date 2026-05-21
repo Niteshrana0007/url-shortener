@@ -17,7 +17,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(tenantInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/v1/auth/**");
+                .excludePathPatterns(
+        "/api/v1/auth/**", 
+                    "/api/v1/**"
+                );// Add the path used for public redirects here);
     }
 
     @Override

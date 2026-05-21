@@ -95,8 +95,8 @@ springdoc:
     operations-sorter: method
 
 app:
-  base-url: ${APP_BASE_URL:http://localhost:8080/api/v1}
-#  base-url: ${APP_BASE_URL:https://swiftlink.ai}
+  base-url: ${APP_BASE_URL:https://url-shortener-rof7.onrender.com/api/v1}
+#  base-url: ${APP_BASE_URL:http://localhost:8080}
   jwt:
     secret: ${JWT_SECRET:c3dpZnRsaW5rYWlzdXBlcnNlY3JldGtleWZvcmp3dHRva2VucHJvZHVjdGlvbg==}
     access-token-expiry-ms: 900000        # 15 minutes

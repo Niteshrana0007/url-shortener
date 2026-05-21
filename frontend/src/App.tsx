@@ -26,7 +26,7 @@ export default function App() {
           <Routes>
             <Route path="/login"    element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/:alias"   element={<RedirectHandler />} />
+            <Route path="/api/v1/:alias"   element={<RedirectHandler />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/"           element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard"  element={<DashboardPage />} />

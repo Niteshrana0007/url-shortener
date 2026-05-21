@@ -10,7 +10,7 @@ export default function RedirectHandler() {
       // Direct call to the BACKEND URL (Render), not the Vercel URL
       // This triggers the 302 redirect from UrlShortenerController.java
       const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
-      window.location.href = `${backendUrl}/${alias}`;
+      window.location.href = `${backendUrl}/api/v1/${alias}`;
     }
   }, [alias]);
 
